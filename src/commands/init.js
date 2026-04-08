@@ -197,6 +197,12 @@ function renderLocalSuccess() {
       "  Token data will be collected automatically via hooks.",
       "  Launching dashboard...",
       "",
+      // One-shot, post-success star CTA. `init` is run once per machine, so
+      // this is the only place a CLI user naturally sees the project's
+      // GitHub URL — and they're at peak satisfaction. No prompts in
+      // status/doctor/sync/etc, which run in scripts and would be noisy.
+      `  ${color("⭐ Liking it? Star us at https://github.com/mm7894215/TokenTracker", DIM)}`,
+      "",
     ].join("\n"),
   );
 }

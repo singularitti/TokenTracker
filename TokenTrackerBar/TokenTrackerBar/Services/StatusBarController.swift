@@ -335,6 +335,13 @@ final class StatusBarController: NSObject {
         aboutItem.target = self
         menu.addItem(aboutItem)
 
+        // Star on GitHub — only visible to users who actively open the menu,
+        // so it's not a "promotional" intrusion. Sits next to About by
+        // convention (users scan that region for project links).
+        let starItem = NSMenuItem(title: "★ Star on GitHub", action: #selector(openGitHub), keyEquivalent: "")
+        starItem.target = self
+        menu.addItem(starItem)
+
         menu.addItem(.separator())
 
         // Show Stats in Menu Bar (toggle)
@@ -388,6 +395,12 @@ final class StatusBarController: NSObject {
 
     @objc private func checkForUpdates() {
         UpdateChecker.shared.check(silent: false)
+    }
+
+    @objc private func openGitHub() {
+        if let url = URL(string: "https://github.com/mm7894215/TokenTracker") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     @objc private func openAbout() {
