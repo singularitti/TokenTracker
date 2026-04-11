@@ -12,6 +12,12 @@ final class StatusBarController: NSObject {
         instance?.closePopoverForModalAlert()
     }
 
+    /// Popover height adapts to content: shorter on macOS < 13 where the Charts module is unavailable.
+    private static let popoverHeight: CGFloat = {
+        if #available(macOS 13, *) { return 720 }
+        return 560
+    }()
+
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover = NSPopover()
     private let viewModel: DashboardViewModel
@@ -249,7 +255,7 @@ final class StatusBarController: NSObject {
 
     private func setupPopover() {
         let rootView = DashboardView(viewModel: viewModel, serverManager: serverManager)
-            .frame(width: 480, height: 720)
+            .frame(width: 480, height: Self.popoverHeight)
 
         popover.contentViewController = NSHostingController(rootView: rootView)
         popover.behavior = .transient
