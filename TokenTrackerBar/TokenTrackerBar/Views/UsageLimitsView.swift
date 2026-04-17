@@ -205,7 +205,7 @@ struct UsageLimitsView: View {
             Text(label)
                 .font(.system(.caption, design: .default))
                 .foregroundStyle(.secondary)
-                .frame(width: 42, alignment: .leading)
+                .frame(width: 28, alignment: .leading)
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -388,7 +388,7 @@ private struct LimitsSkeleton: View {
                     }
                     ForEach(0..<2, id: \.self) { _ in
                         HStack(spacing: 5) {
-                            skeletonRect(width: 42, height: 8, radius: 2)
+                            skeletonRect(width: 28, height: 8, radius: 2)
                             skeletonRect(height: 5, radius: 2)
                             skeletonRect(width: 28, height: 8, radius: 2)
                         }

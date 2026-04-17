@@ -7,6 +7,21 @@ import { FadeIn } from "../../foundation/FadeIn.jsx";
 import { useTheme } from "../../../hooks/useTheme.js";
 import { DateRangePopover, formatDateShort } from "./DateRangePopover.jsx";
 import { ProviderIcon } from "./ProviderIcon.jsx";
+import { formatCompactNumber, formatUsdCurrency } from "../../../lib/format";
+
+function formatTokens(value) {
+  if (!Number.isFinite(Number(value))) return null;
+  const n = Number(value);
+  if (n <= 0) return null;
+  return formatCompactNumber(n, { decimals: 1 });
+}
+
+function formatCost(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n < 0.01) return "<$0.01";
+  return formatUsdCurrency(n.toFixed(2), { decimals: 2 });
+}
 
 function normalizePeriods(periods) {
   if (!Array.isArray(periods)) return [];
@@ -212,7 +227,7 @@ export function UsageOverview({
                   aria-label="View cost breakdown"
                 >
                   {summaryCostValue}
-                  <Info size={16} strokeWidth={2} className="text-oai-gray-400 dark:text-oai-gray-500" />
+                  <Info size={16} strokeWidth={2} className="opacity-80" />
                 </button>
               ) : (
                 <span className="text-xl font-bold text-oai-brand">{summaryCostValue}</span>
@@ -246,8 +261,9 @@ export function UsageOverview({
               })}
             </div>
 
-            {/* Provider Cards */}
-            <div className="flex flex-wrap gap-3">
+            {/* Provider Cards — responsive grid keeps cells equal-width so the
+                last row never stretches when the count doesn't divide evenly. */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
               {providers.map((provider, idx) => {
                 const color = getProviderColor(provider.label, idx);
                 const isExpanded = expandedProvider === provider.label;
@@ -257,9 +273,9 @@ export function UsageOverview({
                     key={provider.label}
                     aria-expanded={isExpanded}
                     aria-controls={`provider-details-${provider.label}`}
-                    aria-label={`${provider.label}: ${provider.totalPercent}%. Click to ${isExpanded ? "collapse" : "expand"} details`}
+                    aria-label={`${provider.label}: ${provider.totalPercent}%, ${formatTokens(provider.usage) || "0"} tokens, ${formatCost(provider.usd) || "$0"}. Click to ${isExpanded ? "collapse" : "expand"} details`}
                     onClick={() => setExpandedProvider(isExpanded ? null : provider.label)}
-                    className={`flex-1 min-w-[140px] text-left p-3 rounded-lg border transition-colors duration-200 ${
+                    className={`min-w-0 text-left p-3 rounded-lg border transition-colors duration-200 ${
                       isExpanded
                         ? "border-oai-gray-300 dark:border-oai-gray-600 bg-oai-gray-50 dark:bg-oai-gray-800"
                         : "border-oai-gray-200 dark:border-oai-gray-700 hover:border-oai-gray-300 dark:hover:border-oai-gray-600"
@@ -272,8 +288,13 @@ export function UsageOverview({
                     <div className="text-lg font-semibold text-oai-black dark:text-oai-white tabular-nums">
                       {provider.totalPercent}%
                     </div>
-                    <div className="text-xs text-oai-gray-400 dark:text-oai-gray-400 mt-0.5">
-                      {provider.models.length} models
+                    <div className="flex items-baseline justify-between gap-2 mt-0.5 text-[11px] text-oai-gray-400 dark:text-oai-gray-400 tabular-nums">
+                      <span className="truncate">
+                        {provider.models.length} {provider.models.length === 1 ? "model" : "models"}
+                      </span>
+                      <span className="shrink-0 whitespace-nowrap">
+                        {[formatTokens(provider.usage), formatCost(provider.usd)].filter(Boolean).join(" · ")}
+                      </span>
                     </div>
                   </button>
                 );
@@ -286,7 +307,7 @@ export function UsageOverview({
                 id={`provider-details-${expandedProvider}`}
                 role="region"
                 aria-label={`${expandedProvider} model details`}
-                className="border border-oai-gray-200 dark:border-oai-gray-700 rounded-lg p-4 bg-oai-gray-50/30 dark:bg-oai-gray-800/30 overflow-hidden"
+                className="mt-2"
               >
                 {providers
                   .filter((p) => p.label === expandedProvider)
@@ -298,42 +319,56 @@ export function UsageOverview({
 
                     return (
                       <div key={provider.label}>
+                        {/* Section header — provider identity only, nothing else */}
                         <div className="flex items-center gap-1.5 mb-3">
-                          <ProviderIcon provider={provider.label} size={15} color={color} className="text-oai-gray-700 dark:text-oai-gray-300 shrink-0" />
+                          <ProviderIcon provider={provider.label} size={14} color={color} className="shrink-0" />
                           <span className="text-sm font-medium text-oai-black dark:text-oai-white">{provider.label}</span>
-                          <span className="text-xs text-oai-gray-400 dark:text-oai-gray-400">
-                            {provider.totalPercent}%
-                          </span>
                         </div>
 
-                        <div className="space-y-2">
-                          {sortedModels.map((model) => (
-                            <div
-                              key={model.id || model.name}
-                              className="flex items-center gap-3"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between gap-2 mb-1">
-                                  <span className="text-sm text-oai-gray-700 dark:text-oai-gray-300 truncate">
+                        {/* Model rows — text line + thin muted bar as visual rhythm */}
+                        <div className="space-y-3">
+                          {sortedModels.map((model) => {
+                            const tokensLabel = formatTokens(model.usage);
+                            const costLabel = formatCost(model.cost);
+                            const clampedShare = Math.max(0, Math.min(100, Number(model.share) || 0));
+                            return (
+                              <div key={model.id || model.name}>
+                                <div className="flex items-baseline gap-4 mb-1.5">
+                                  <span
+                                    className="flex-1 min-w-0 text-sm text-oai-gray-700 dark:text-oai-gray-300 truncate"
+                                    title={model.name}
+                                  >
                                     {model.name}
                                   </span>
-                                  <span className="text-sm font-medium text-oai-black dark:text-oai-white tabular-nums shrink-0">
+                                  <span className="shrink-0 w-16 text-right text-sm text-oai-gray-500 dark:text-oai-gray-400 tabular-nums">
+                                    {tokensLabel}
+                                  </span>
+                                  <span className="shrink-0 w-16 text-right text-sm text-oai-gray-500 dark:text-oai-gray-400 tabular-nums">
+                                    {costLabel}
+                                  </span>
+                                  <span className="shrink-0 w-12 text-right text-sm text-oai-black dark:text-oai-white tabular-nums">
                                     {model.share}%
                                   </span>
                                 </div>
-                                <div className="h-1 bg-oai-gray-200 dark:bg-oai-gray-700 rounded-full overflow-hidden">
+                                <div
+                                  className="h-[3px] bg-oai-gray-100 dark:bg-oai-gray-800 rounded-full overflow-hidden"
+                                  role="progressbar"
+                                  aria-valuenow={clampedShare}
+                                  aria-valuemin={0}
+                                  aria-valuemax={100}
+                                >
                                   <div
-                                    className="h-full rounded-full transition-all duration-500"
+                                    className="h-full transition-[width] duration-500 ease-out"
                                     style={{
-                                      width: `${model.share}%`,
+                                      width: `${clampedShare}%`,
                                       backgroundColor: color,
-                                      opacity: 0.7,
+                                      opacity: 0.45,
                                     }}
                                   />
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     );

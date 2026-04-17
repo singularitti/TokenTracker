@@ -67,13 +67,13 @@ export function StatsPanel({
   const periodConversationLabel = (() => {
     switch (period) {
       case "day":
-        return "today convs";
+        return "today";
       case "week":
-        return "week convs";
+        return "week";
       case "month":
-        return "month convs";
+        return "month";
       case "total":
-        return "all convs";
+        return "all";
       default:
         return "convs";
     }
@@ -90,25 +90,25 @@ export function StatsPanel({
             <span className="text-sm font-semibold text-oai-black dark:text-oai-white tabular-nums">
               {formatValue(rolling?.last_7d?.totals?.billable_total_tokens)}
             </span>
-            <span className="text-[10px] text-oai-gray-400 dark:text-oai-gray-400 mt-0.5">7d</span>
+            <span className="text-[10px] text-oai-gray-400 dark:text-oai-gray-400 mt-0.5 whitespace-nowrap">7d</span>
           </div>
           <div className="flex flex-col items-center justify-center px-2 py-2 bg-oai-gray-50 dark:bg-oai-gray-800 rounded-lg">
             <span className="text-sm font-semibold text-oai-black dark:text-oai-white tabular-nums">
               {formatValue(rolling?.last_30d?.totals?.billable_total_tokens)}
             </span>
-            <span className="text-[10px] text-oai-gray-400 dark:text-oai-gray-400 mt-0.5">30d</span>
+            <span className="text-[10px] text-oai-gray-400 dark:text-oai-gray-400 mt-0.5 whitespace-nowrap">30d</span>
           </div>
           <div className="flex flex-col items-center justify-center px-2 py-2 bg-oai-gray-50 dark:bg-oai-gray-800 rounded-lg">
             <span className="text-sm font-semibold text-oai-black dark:text-oai-white tabular-nums">
               {formatValue(rolling?.last_30d?.avg_per_active_day)}
             </span>
-            <span className="text-[10px] text-oai-gray-400 dark:text-oai-gray-400 mt-0.5">avg</span>
+            <span className="text-[10px] text-oai-gray-400 dark:text-oai-gray-400 mt-0.5 whitespace-nowrap">avg</span>
           </div>
           <div className="flex flex-col items-center justify-center px-2 py-2 bg-oai-gray-50 dark:bg-oai-gray-800 rounded-lg">
             <span className="text-sm font-semibold text-oai-black dark:text-oai-white tabular-nums">
               {formatValue(periodConversations)}
             </span>
-            <span className="text-[10px] text-oai-gray-400 dark:text-oai-gray-400 mt-0.5">{periodConversationLabel}</span>
+            <span className="text-[10px] text-oai-gray-400 dark:text-oai-gray-400 mt-0.5 whitespace-nowrap">{periodConversationLabel}</span>
           </div>
         </div>
 
