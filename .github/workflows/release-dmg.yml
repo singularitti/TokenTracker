@@ -21,7 +21,7 @@ jobs:
     # and hero number disappeared in shipped DMGs even though the same
     # source rendered fine locally. Pinning to macos-26 keeps the SDK in
     # sync with local builds.
-    runs-on: macos-latest
+    runs-on: macos-26
     permissions:
       contents: write
     steps:
