@@ -137,7 +137,7 @@ export function DataDetails({
                       <button
                         type="button"
                         onClick={() => toggleSort(column.key)}
-                        className="flex w-full items-center justify-start px-4 py-2 text-left oai-text-caption font-semibold text-oai-gray-600 dark:text-oai-gray-300 hover:text-oai-black dark:hover:text-oai-white transition-colors"
+                        className="flex w-full items-center justify-start px-2.5 sm:px-4 py-2 text-left oai-text-caption font-semibold text-oai-gray-600 dark:text-oai-gray-300 hover:text-oai-black dark:hover:text-oai-white transition-colors"
                       >
                         <span className="inline-flex items-center gap-1">
                           <span>{column.label}</span>
@@ -160,25 +160,25 @@ export function DataDetails({
                       row.missing ? "text-oai-gray-400 dark:text-oai-gray-400" : row.future ? "text-oai-gray-300 dark:text-oai-gray-600" : "text-oai-black dark:text-oai-white"
                     }`}
                   >
-                    <td className="px-4 py-2 oai-text-body-sm text-oai-gray-500 dark:text-oai-gray-300">
+                    <td className="px-2.5 sm:px-4 py-2 oai-text-body-sm text-oai-gray-500 dark:text-oai-gray-300 whitespace-nowrap">
                       {renderDailyBreakdownDate ? renderDailyBreakdownDate(row) : renderDetailDate(row)}
                     </td>
-                    <td className="px-4 py-2 oai-text-body-sm font-medium text-oai-black dark:text-oai-white tabular-nums">
+                    <td className="px-2.5 sm:px-4 py-2 oai-text-body-sm font-medium text-oai-black dark:text-oai-white tabular-nums">
                       {renderDetailCell(row, "total_tokens")}
                     </td>
-                    <td className="px-4 py-2 oai-text-body-sm text-oai-gray-600 dark:text-oai-gray-300 tabular-nums">
+                    <td className="px-2.5 sm:px-4 py-2 oai-text-body-sm text-oai-gray-600 dark:text-oai-gray-300 tabular-nums">
                       {renderDetailCell(row, "input_tokens")}
                     </td>
-                    <td className="px-4 py-2 oai-text-body-sm text-oai-gray-600 dark:text-oai-gray-300 tabular-nums">
+                    <td className="px-2.5 sm:px-4 py-2 oai-text-body-sm text-oai-gray-600 dark:text-oai-gray-300 tabular-nums">
                       {renderDetailCell(row, "output_tokens")}
                     </td>
-                    <td className="px-4 py-2 oai-text-body-sm text-oai-gray-600 dark:text-oai-gray-300 tabular-nums">
+                    <td className="px-2.5 sm:px-4 py-2 oai-text-body-sm text-oai-gray-600 dark:text-oai-gray-300 tabular-nums">
                       {renderDetailCell(row, "cached_input_tokens")}
                     </td>
-                    <td className="px-4 py-2 oai-text-body-sm text-oai-gray-600 dark:text-oai-gray-300 tabular-nums">
+                    <td className="px-2.5 sm:px-4 py-2 oai-text-body-sm text-oai-gray-600 dark:text-oai-gray-300 tabular-nums">
                       {renderDetailCell(row, "reasoning_output_tokens")}
                     </td>
-                    <td className="px-4 py-2 oai-text-body-sm text-oai-gray-600 dark:text-oai-gray-300 tabular-nums">
+                    <td className="px-2.5 sm:px-4 py-2 oai-text-body-sm text-oai-gray-600 dark:text-oai-gray-300 tabular-nums">
                       {renderDetailCell(row, "conversation_count")}
                     </td>
                   </tr>

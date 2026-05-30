@@ -465,7 +465,7 @@ export function ProfileContent({ data, currency, rate, onClose, variant = "modal
         )}
       >
         {/* Stat strip — flat row, no nested cards */}
-        <div className="grid grid-cols-4 gap-x-6 gap-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4">
           <Stat
             value={formatTokens(totals?.total_tokens)}
             label={copy("leaderboard.profile_modal.stat.total_tokens")}

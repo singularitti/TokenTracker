@@ -83,7 +83,7 @@ export function StatsPanel({
   return (
     <Card className={`h-full ${className}`}>
         {/* Rolling Stats */}
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div className="flex flex-col items-center justify-center px-2 py-2 bg-oai-gray-50 dark:bg-oai-gray-800 rounded-lg">
             <span className="text-sm font-semibold text-oai-black dark:text-oai-white tabular-nums">
               {formatValue(rolling?.last_7d?.totals?.billable_total_tokens)}

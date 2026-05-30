@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { Info, Loader2, SquareArrowOutUpRight } from "lucide-react";
 import { Popover } from "@base-ui/react/popover";
@@ -136,7 +136,32 @@ export function UsageOverview({
 }) {
   const tabs = normalizePeriods(periods);
   const summaryCounterValue = parseAnimatedCounterValue(String(summaryValue ?? ""));
-  const showAnimatedSummary = summaryCounterValue != null;
+  // The digit-by-digit Counter renders at a fixed 72px and would clip on
+  // phones. Below sm we drop it and render the plain value, which scales
+  // with the responsive font class below. 639px == one below Tailwind's
+  // sm (640px), so this flips in lockstep with the sm: classes.
+  const matchesCompact = () =>
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 639px)").matches;
+  const [isCompactSummary, setIsCompactSummary] = useState(matchesCompact);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const mq = window.matchMedia("(max-width: 639px)");
+    const onChange = (e) => setIsCompactSummary(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  const showAnimatedSummary = summaryCounterValue != null && !isCompactSummary;
+  // Keep the selected period chip in view when the tab strip scrolls
+  // horizontally on narrow screens.
+  const tablistRef = useRef(null);
+  useEffect(() => {
+    const el = tablistRef.current?.querySelector('[aria-selected="true"]');
+    if (el && typeof el.scrollIntoView === "function") {
+      el.scrollIntoView({ block: "nearest", inline: "center" });
+    }
+  }, [period]);
   const [expandedProvider, setExpandedProvider] = useState(null);
   const { resolvedTheme } = useTheme();
   const { currency, rate } = useCurrency();
@@ -149,12 +174,13 @@ export function UsageOverview({
 
   return (
     <Card className={className}>
-        {/* Header: Period Tabs + Refresh */}
-        <div className="flex items-center justify-between gap-3 mb-6">
-          <div role="tablist" aria-label={copy("usage.overview.tablist_aria")} className="flex gap-1">
+        {/* Header: Period Tabs + Refresh. Tabs are a single horizontal-scroll
+            strip (never wrap into stacked rows); actions stay pinned right. */}
+        <div className="flex items-center gap-2 mb-6">
+          <div ref={tablistRef} role="tablist" aria-label={copy("usage.overview.tablist_aria")} className="flex flex-1 min-w-0 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {tabs.map((p) => {
               const isActive = period === p.key;
-              const tabClass = `text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${
+              const tabClass = `shrink-0 whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${
                 isActive
                   ? "text-oai-black dark:text-oai-white bg-oai-gray-100 dark:bg-oai-gray-800"
                   : "text-oai-gray-500 dark:text-oai-gray-300 hover:text-oai-black dark:hover:text-oai-white hover:bg-oai-gray-50 dark:hover:bg-oai-gray-800"
@@ -216,7 +242,7 @@ export function UsageOverview({
               );
             })}
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
 {onOpenShare ? (
               <button
                 type="button"
@@ -237,7 +263,7 @@ export function UsageOverview({
         {/* Main Stats */}
         <div className="text-center mb-8">
           <div className="text-xs text-oai-gray-500 dark:text-oai-gray-300 uppercase tracking-wider mb-3">{summaryLabel}</div>
-          <div className="text-6xl md:text-7xl font-bold text-oai-black dark:text-oai-white tracking-tight tabular-nums">
+          <div className="text-5xl sm:text-6xl md:text-7xl font-bold text-oai-black dark:text-oai-white tracking-tight tabular-nums">
             {showAnimatedSummary ? (
               <Counter
                 value={summaryCounterValue}

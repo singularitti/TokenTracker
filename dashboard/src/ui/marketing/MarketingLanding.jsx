@@ -118,7 +118,7 @@ export function MarketingLanding({
       </div>
       <header className={cn("sticky top-0 z-50 transition-all duration-300", scrolled ? "bg-oai-gray-950/80 backdrop-blur-md border-b border-oai-gray-900" : "bg-transparent border-b border-transparent")}>
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-3 sm:gap-5">
             <Link
               to={signUpUrl || "/"}
               className="flex items-center gap-3 no-underline outline-none rounded focus-visible:ring-2 focus-visible:ring-oai-brand-500 focus-visible:ring-offset-2 dark:ring-offset-oai-gray-950 transition-opacity hover:opacity-80"
@@ -132,8 +132,8 @@ export function MarketingLanding({
               <HeaderGithubStar />
             </div>
           </div>
-          <div className="flex items-center justify-end gap-5 sm:gap-6">
-            {/* Leaderboard 纯文字导航链接 */}
+          <div className="flex items-center justify-end gap-3 sm:gap-5 md:gap-6">
+            {/* Leaderboard 纯文字导航链接 — 移动端收起（正文有醒目的榜单 CTA 兜底） */}
             <Link
               to="/leaderboard"
               className="hidden sm:inline text-sm font-medium text-oai-gray-400 hover:text-white transition-colors duration-200 select-none outline-none focus-visible:underline"
@@ -184,14 +184,14 @@ export function MarketingLanding({
 
       <main>
         <section className="relative py-16 sm:py-24 lg:py-32 overflow-hidden">
-          <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 flex flex-col items-center text-center gap-20 lg:gap-36">
+          <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 flex flex-col items-center text-center gap-12 sm:gap-20 lg:gap-36">
             <motion.div
               initial={reduceMotion ? false : { opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={spring || { duration: 0.5 }}
               className="w-full max-w-3xl relative z-20"
             >
-                <h1 className="text-balance text-5xl font-semibold tracking-tight text-white sm:text-6xl lg:text-[4rem] lg:leading-[1.05]">
+                <h1 className="text-balance text-4xl font-semibold tracking-tight text-white sm:text-6xl lg:text-[4rem] leading-[1.1] sm:leading-tight lg:leading-[1.05]">
                   {copy("landing.v2.hero.title_line1")}
                   <br />
                   <span 
@@ -201,7 +201,7 @@ export function MarketingLanding({
                     {copy("landing.v2.hero.title_line2")}
                   </span>
                 </h1>
-                <p className="mt-6 text-lg leading-relaxed text-oai-gray-400">
+                <p className="mt-5 sm:mt-6 text-base sm:text-lg leading-relaxed text-oai-gray-400">
                   {copy("landing.v2.hero.subtagline")}
                 </p>
 
@@ -386,9 +386,9 @@ export function MarketingLanding({
           </div>
         </section>
 
-        <section className="border-t border-oai-gray-900 py-20 lg:py-32 relative bg-oai-gray-950">
+        <section className="border-t border-oai-gray-900 py-14 sm:py-20 lg:py-32 relative bg-oai-gray-950">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 relative z-10">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-8 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 sm:gap-12 lg:gap-8 items-start">
               
               {/* Left Column: Geek Text & Call To Action */}
               <div className="lg:col-span-5 space-y-6 text-left">
@@ -434,7 +434,7 @@ export function MarketingLanding({
                     className="w-full"
                   >
                     {/* Panel Header */}
-                    <div className="flex items-center justify-between px-5 py-3 border-b border-oai-gray-800/80 bg-white/[0.025] backdrop-blur-xs text-[10px] tracking-widest text-oai-gray-500 font-bold uppercase select-none">
+                    <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-oai-gray-800/80 bg-white/[0.025] backdrop-blur-xs text-[10px] tracking-widest text-oai-gray-500 font-bold uppercase select-none">
                       <span>Community Rankings (Global)</span>
                       <span className="flex items-center gap-1.5 font-mono text-oai-brand-400">
                         <span className="h-1.5 w-1.5 rounded-full bg-oai-brand-500 animate-pulse" />
@@ -446,7 +446,7 @@ export function MarketingLanding({
                     <div className="divide-y divide-oai-gray-800/60">
                       
                       {/* Row 1 - VOLT */}
-                      <div className="flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors group">
+                      <div className="flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-white/[0.02] transition-colors group">
                         <div className="flex items-center gap-3.5 min-w-0">
                           <span className="font-mono text-xs font-bold text-yellow-500 w-4">01</span>
                           <span className="text-oai-gray-700 font-mono text-xs select-none">›</span>
@@ -468,7 +468,7 @@ export function MarketingLanding({
                       </div>
 
                       {/* Row 2 - ALEX */}
-                      <div className="flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors group">
+                      <div className="flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-white/[0.02] transition-colors group">
                         <div className="flex items-center gap-3.5 min-w-0">
                           <span className="font-mono text-xs font-bold text-oai-gray-500 w-4">02</span>
                           <span className="text-oai-gray-700 font-mono text-xs select-none">›</span>
@@ -486,7 +486,7 @@ export function MarketingLanding({
                       </div>
 
                       {/* Row 3 - CHARLIE */}
-                      <div className="flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors group">
+                      <div className="flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-white/[0.02] transition-colors group">
                         <div className="flex items-center gap-3.5 min-w-0">
                           <span className="font-mono text-xs font-bold text-oai-gray-500 w-4">03</span>
                           <span className="text-oai-gray-700 font-mono text-xs select-none">›</span>
@@ -506,7 +506,7 @@ export function MarketingLanding({
                     </div>
 
                     {/* IDE-style bottom Status Bar */}
-                    <div className="px-5 py-2.5 border-t border-oai-gray-800/80 bg-black/[0.15] flex items-center justify-between text-[9px] font-mono tracking-widest text-oai-gray-600 select-none">
+                    <div className="px-4 sm:px-5 py-2.5 border-t border-oai-gray-800/80 bg-black/[0.15] flex items-center justify-between text-[9px] font-mono tracking-widest text-oai-gray-600 select-none">
                       <span>SYSTEM: // LEADERBOARD_PREVIEW_FEED</span>
                       <span>42 DAY ACTIVE STREAK</span>
                     </div>
@@ -518,8 +518,8 @@ export function MarketingLanding({
           </div>
         </section>
 
-        <section className="py-20 lg:py-32 border-t border-oai-gray-900/60 bg-[#0c0c0e]">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-16 items-start">
+        <section className="py-14 sm:py-20 lg:py-32 border-t border-oai-gray-900/60 bg-[#0c0c0e]">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-10 sm:gap-12 lg:gap-16 items-start">
             
             {/* Left Column - Purified to reduce height */}
             <div className="lg:col-span-5 max-w-md text-left">
@@ -535,7 +535,7 @@ export function MarketingLanding({
             </div>
 
             {/* Right Column - Enriched with 4 items & footer commands to raise height */}
-            <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-10 w-full">
+            <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-x-8 sm:gap-x-12 gap-y-8 sm:gap-y-10 w-full">
               
               {/* With Column - Terminal Diff Style */}
               <div className="space-y-5">

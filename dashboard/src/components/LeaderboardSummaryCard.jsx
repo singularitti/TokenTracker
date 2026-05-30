@@ -33,6 +33,7 @@ export function LeaderboardMeChip({
   onOpenProfile,
   onJumpToMe,
   canJump,
+  className,
 }) {
   const rank = me && typeof me.rank === "number" ? me.rank : null;
   if (!rank) return null;
@@ -69,6 +70,7 @@ export function LeaderboardMeChip({
         interactive
           ? "border-oai-gray-200 hover:border-oai-brand-400 dark:border-oai-gray-800 dark:hover:border-oai-brand-500/80 bg-oai-gray-50/50 dark:bg-white/[0.02] backdrop-blur-md hover:bg-oai-brand-50/40 dark:hover:bg-oai-brand-950/20 active:scale-[0.97] hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)] dark:hover:shadow-[0_4px_20px_rgba(0,0,0,0.25)] dark:ring-1 dark:ring-white/[0.04] dark:hover:ring-white/[0.08]"
           : "border-oai-gray-100 dark:border-oai-gray-800/60 bg-oai-gray-50/20 dark:bg-white/[0.01] backdrop-blur-sm dark:ring-1 dark:ring-white/[0.02]",
+        className,
       )}
     >
       <LeaderboardAvatar
@@ -77,7 +79,7 @@ export function LeaderboardMeChip({
         displayName={headlineName}
         seed={avatarSeed}
       />
-      <span className="max-w-[120px] truncate text-xs font-semibold text-oai-black dark:text-oai-gray-200 group-hover:text-oai-brand-600 dark:group-hover:text-oai-brand-400 transition-colors">
+      <span className="hidden sm:inline max-w-[120px] truncate text-xs font-semibold text-oai-black dark:text-oai-gray-200 group-hover:text-oai-brand-600 dark:group-hover:text-oai-brand-400 transition-colors">
         {headlineName}
       </span>
       <span className="text-xs font-bold tabular-nums text-oai-gray-800 dark:text-white">
@@ -86,7 +88,7 @@ export function LeaderboardMeChip({
       {percentile != null && (
         <span
           className={cn(
-            "inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-extrabold tracking-wider tabular-nums uppercase transition-colors duration-300 ring-1",
+            "hidden sm:inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-extrabold tracking-wider tabular-nums uppercase transition-colors duration-300 ring-1",
             percentile <= 10
               ? "bg-amber-500/10 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400 ring-amber-500/20"
               : "bg-oai-brand-100/50 text-oai-brand-700 dark:bg-oai-brand-500/10 dark:text-oai-brand-400 ring-oai-brand-500/10"

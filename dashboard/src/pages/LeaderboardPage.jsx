@@ -21,7 +21,7 @@ import { useLoginModal } from "../contexts/LoginModalContext.jsx";
 import { ProviderIcon } from "../ui/dashboard/components/ProviderIcon.jsx";
 import { isAccessTokenReady, resolveAuthAccessTokenWithRetry } from "../lib/auth-token";
 import { copy } from "../lib/copy";
-import { toDisplayNumber } from "../lib/format";
+import { toDisplayNumber, formatCompactNumber } from "../lib/format";
 import { cn } from "../lib/cn";
 import { useCurrency } from "../hooks/useCurrency.js";
 import { CURRENCY_USD, getCurrencySymbol } from "../lib/currency";
@@ -87,6 +87,17 @@ function formatCost(value, currency, rate) {
   return `${symbol}${converted.toFixed(2)}`;
 }
 
+// Total-tokens value: compact ("79.6B") on phones where the column is tight,
+// full grouped digits at sm+ where the wide table has room.
+function TotalTokens({ value }) {
+  return (
+    <>
+      <span className="sm:hidden">{formatCompactNumber(value)}</span>
+      <span className="hidden sm:inline">{toDisplayNumber(value)}</span>
+    </>
+  );
+}
+
 function leaderboardTokenCells(entry, isMe, orderedColumns) {
   const numCls = isMe
     ? "text-oai-gray-700 dark:text-oai-gray-300"
@@ -98,7 +109,7 @@ function leaderboardTokenCells(entry, isMe, orderedColumns) {
     <td
       key={col.key}
       data-column-key={col.key}
-      className={cn("px-4 py-4 whitespace-nowrap text-right tabular-nums", numCls, cellBg)}
+      className={cn("hidden sm:table-cell px-3 sm:px-4 py-4 whitespace-nowrap text-right tabular-nums", numCls, cellBg)}
     >
       {toDisplayNumber(entry?.[col.key])}
     </td>
@@ -432,7 +443,7 @@ export function LeaderboardPage({
         onDragEnd={handleDragEnd}
       >
       <div className="w-full overflow-x-auto">
-        <table className="min-w-max w-full text-left text-sm">
+        <table className="min-w-full sm:min-w-max w-full text-left text-sm">
           <thead className="border-b border-oai-gray-200 dark:border-oai-gray-800">
             <tr>
               <th className={cn(LB_STICKY_TH_RANK, "text-[11px] font-semibold uppercase tracking-wider text-oai-gray-400 dark:text-oai-gray-500")}>
@@ -441,10 +452,10 @@ export function LeaderboardPage({
               <th className={cn(LB_STICKY_TH_USER, "text-[11px] font-semibold uppercase tracking-wider text-oai-gray-400 dark:text-oai-gray-500")}>
                 {copy("leaderboard.column.user")}
               </th>
-              <th className="px-4 py-4 text-[11px] font-semibold uppercase tracking-wider text-oai-gray-400 dark:text-oai-gray-500 whitespace-nowrap text-right align-middle">
+              <th className="px-3 sm:px-4 py-4 text-[11px] font-semibold uppercase tracking-wider text-oai-gray-400 dark:text-oai-gray-500 whitespace-nowrap text-right align-middle">
                 {copy("leaderboard.column.total")}
               </th>
-              <th className="px-4 py-4 text-[11px] font-semibold uppercase tracking-wider text-oai-gray-400 dark:text-oai-gray-500 whitespace-nowrap text-right align-middle" title="Based on estimated API pricing, not actual billing">
+              <th className="hidden sm:table-cell px-3 sm:px-4 py-4 text-[11px] font-semibold uppercase tracking-wider text-oai-gray-400 dark:text-oai-gray-500 whitespace-nowrap text-right align-middle" title="Based on estimated API pricing, not actual billing">
                 {copy("leaderboard.column.est_cost")}
               </th>
               <SortableContext items={columnOrder} strategy={horizontalListSortingStrategy}>
@@ -452,7 +463,7 @@ export function LeaderboardPage({
                   <SortableColumnHeader
                     key={col.key}
                     id={col.key}
-                    thClassName="px-4 py-4 text-[11px] font-semibold uppercase tracking-wider text-oai-gray-400 dark:text-oai-gray-500 whitespace-nowrap align-middle"
+                    thClassName="hidden sm:table-cell px-3 sm:px-4 py-4 text-[11px] font-semibold uppercase tracking-wider text-oai-gray-400 dark:text-oai-gray-500 whitespace-nowrap align-middle"
                   >
                     <LeaderboardProviderColumnHeader iconSrc={col.icon} label={copy(col.copyKey)} />
                   </SortableColumnHeader>
@@ -537,10 +548,10 @@ export function LeaderboardPage({
                         {entry?.github_url && <GithubLinkWithTooltip githubUrl={entry.github_url} />}
                       </div>
                     </td>
-                    <td className="px-4 py-4 font-medium text-oai-black dark:text-oai-white whitespace-nowrap text-right tabular-nums bg-oai-brand-50 dark:bg-oai-brand-900/10">
-                      {toDisplayNumber(entry?.total_tokens)}
+                    <td className="px-3 sm:px-4 py-4 font-medium text-oai-black dark:text-oai-white whitespace-nowrap text-right tabular-nums bg-oai-brand-50 dark:bg-oai-brand-900/10">
+                      <TotalTokens value={entry?.total_tokens} />
                     </td>
-                    <td className="px-4 py-4 font-medium text-oai-brand-600 dark:text-oai-brand-400 whitespace-nowrap text-right tabular-nums bg-oai-brand-50 dark:bg-oai-brand-900/10" title="Based on estimated API pricing, not actual billing">
+                    <td className="hidden sm:table-cell px-3 sm:px-4 py-4 font-medium text-oai-brand-600 dark:text-oai-brand-400 whitespace-nowrap text-right tabular-nums bg-oai-brand-50 dark:bg-oai-brand-900/10" title="Based on estimated API pricing, not actual billing">
                       {formatCost(entry?.estimated_cost_usd, currency, rate)}
                     </td>
                     {leaderboardTokenCells(entry, true, orderedColumns)}
@@ -571,10 +582,10 @@ export function LeaderboardPage({
                       {entry?.github_url && <GithubLinkWithTooltip githubUrl={entry.github_url} />}
                     </div>
                   </td>
-                  <td className="px-4 py-4 font-semibold text-oai-gray-800 dark:text-oai-gray-200 whitespace-nowrap text-right tabular-nums bg-white dark:bg-oai-gray-950 group-hover:bg-oai-gray-50 dark:group-hover:bg-oai-gray-900/60">
-                    {toDisplayNumber(entry?.total_tokens)}
+                  <td className="px-3 sm:px-4 py-4 font-semibold text-oai-gray-800 dark:text-oai-gray-200 whitespace-nowrap text-right tabular-nums bg-white dark:bg-oai-gray-950 group-hover:bg-oai-gray-50 dark:group-hover:bg-oai-gray-900/60">
+                    <TotalTokens value={entry?.total_tokens} />
                   </td>
-                  <td className="px-4 py-4 text-oai-gray-500 dark:text-oai-gray-400 whitespace-nowrap text-right tabular-nums bg-white dark:bg-oai-gray-950 group-hover:bg-oai-gray-50 dark:group-hover:bg-oai-gray-900/60" title="Based on estimated API pricing, not actual billing">
+                  <td className="hidden sm:table-cell px-3 sm:px-4 py-4 text-oai-gray-500 dark:text-oai-gray-400 whitespace-nowrap text-right tabular-nums bg-white dark:bg-oai-gray-950 group-hover:bg-oai-gray-50 dark:group-hover:bg-oai-gray-900/60" title="Based on estimated API pricing, not actual billing">
                     {formatCost(entry?.estimated_cost_usd, currency, rate)}
                   </td>
                   {leaderboardTokenCells(entry, false, orderedColumns)}
@@ -635,72 +646,75 @@ export function LeaderboardPage({
     <div className="flex flex-col flex-1 text-oai-black dark:text-oai-white font-oai antialiased">
       <main className="flex-1 pt-8 sm:pt-10 pb-12 sm:pb-16">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-oai-black dark:text-white mb-3">
-                {copy("leaderboard.title")}
-              </h1>
-              <p className="text-oai-gray-500 dark:text-oai-gray-400 text-sm sm:text-base">
-                {period === "total"
-                  ? copy("leaderboard.range.total")
-                  : from && to
-                    ? copy("leaderboard.range", { period: periodLabel, from, to })
-                    : copy("leaderboard.range_loading", { period: periodLabel })}
-                {generatedAt && (
-                  <span className="ml-2 pl-2 border-l border-oai-gray-200 dark:border-oai-gray-800 inline-block text-oai-gray-400 dark:text-oai-gray-500 text-xs">
-                    {copy("leaderboard.generated_at", { ts: generatedAt })}
-                  </span>
-                )}
-              </p>
+          {/* Title gets its own row. */}
+          <div className="mb-5 sm:mb-6">
+            <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-oai-black dark:text-white mb-2 sm:mb-3">
+              {copy("leaderboard.title")}
+            </h1>
+            <p className="text-oai-gray-500 dark:text-oai-gray-400 text-sm sm:text-base">
+              {period === "total"
+                ? copy("leaderboard.range.total")
+                : from && to
+                  ? copy("leaderboard.range", { period: periodLabel, from, to })
+                  : copy("leaderboard.range_loading", { period: periodLabel })}
+              {generatedAt && (
+                <span className="ml-2 pl-2 border-l border-oai-gray-200 dark:border-oai-gray-800 hidden sm:inline-block text-oai-gray-400 dark:text-oai-gray-500 text-xs">
+                  {copy("leaderboard.generated_at", { ts: generatedAt })}
+                </span>
+              )}
+            </p>
+          </div>
+
+          {/* One row: period filter (left) + personal me-chip (right). The chip
+              drops its name/percentile below sm so both fit on a single line. */}
+          <div className="mb-6 sm:mb-8 flex flex-row items-center justify-between gap-3">
+            <div className="inline-flex h-9 p-1 border border-oai-gray-200 dark:border-oai-gray-800 rounded-full items-center relative">
+              {["week", "month", "total"].map((p) => {
+                const isActive = period === p;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => handlePeriodChange(p)}
+                    disabled={listState.loading}
+                    className={cn(
+                      "px-3 sm:px-4 h-7 text-sm font-medium rounded-full flex items-center justify-center transition-colors relative",
+                      isActive
+                        ? "text-oai-black dark:text-white"
+                        : "text-oai-gray-500 dark:text-oai-gray-400 hover:text-oai-gray-800 dark:hover:text-oai-gray-200"
+                    )}
+                  >
+                    <span className="relative z-10">
+                      {p === "week" ? weekLabel : p === "month" ? monthLabel : totalLabel}
+                    </span>
+                    {isActive && (
+                      <motion.div
+                        layoutId="leaderboard-period-active-bg"
+                        className="absolute inset-0 bg-oai-gray-200 dark:bg-oai-gray-800 rounded-full z-0"
+                        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <LeaderboardMeChip
-                me={me}
-                totalEntries={totalEntries}
-                meLabel={meLabel}
-                onOpenProfile={me?.user_id ? () => openProfileModal(me.user_id) : undefined}
-                onJumpToMe={handleJumpToMe}
-                canJump={myPage != null && !onMyPage && !listState.loading}
-              />
-              <div className="inline-flex h-9 p-1 border border-oai-gray-200 dark:border-oai-gray-800 rounded-full items-center relative">
-                {["week", "month", "total"].map((p) => {
-                  const isActive = period === p;
-                  return (
-                    <button
-                      key={p}
-                      onClick={() => handlePeriodChange(p)}
-                      disabled={listState.loading}
-                      className={cn(
-                        "px-4 h-7 text-sm font-medium rounded-full flex items-center justify-center transition-colors relative",
-                        isActive
-                          ? "text-oai-black dark:text-white"
-                          : "text-oai-gray-500 dark:text-oai-gray-400 hover:text-oai-gray-800 dark:hover:text-oai-gray-200"
-                      )}
-                    >
-                      <span className="relative z-10">
-                        {p === "week" ? weekLabel : p === "month" ? monthLabel : totalLabel}
-                      </span>
-                      {isActive && (
-                        <motion.div
-                          layoutId="leaderboard-period-active-bg"
-                          className="absolute inset-0 bg-oai-gray-200 dark:bg-oai-gray-800 rounded-full z-0"
-                          transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <LeaderboardMeChip
+              me={me}
+              totalEntries={totalEntries}
+              meLabel={meLabel}
+              onOpenProfile={me?.user_id ? () => openProfileModal(me.user_id) : undefined}
+              onJumpToMe={handleJumpToMe}
+              canJump={myPage != null && !onMyPage && !listState.loading}
+              className="shrink-0"
+            />
           </div>
 
           {!signedIn && (
-            <div className="mb-6 flex items-center justify-between text-sm">
+            <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm">
               <p className="text-oai-gray-500 dark:text-oai-gray-400">{copy("leaderboard.signin_prompt")}</p>
               <button
                 onClick={openLoginModal}
-                className="px-3 py-1.5 text-sm font-medium text-oai-gray-600 dark:text-oai-gray-300 border border-oai-gray-300 dark:border-oai-gray-700 rounded-md hover:text-oai-black dark:hover:text-white hover:border-oai-gray-400 dark:hover:border-oai-gray-600 transition-colors"
+                className="shrink-0 whitespace-nowrap self-start sm:self-auto px-3 py-1.5 text-sm font-medium text-oai-gray-600 dark:text-oai-gray-300 border border-oai-gray-300 dark:border-oai-gray-700 rounded-md hover:text-oai-black dark:hover:text-white hover:border-oai-gray-400 dark:hover:border-oai-gray-600 transition-colors"
               >
                 {copy("leaderboard.signin_button")}
               </button>
@@ -708,12 +722,12 @@ export function LeaderboardPage({
           )}
 
           {authTokenAllowed && authTokenReady && !cloudSyncOn && (
-            <div className="mb-6 flex items-center justify-between text-sm">
+            <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm">
               <p className="text-oai-gray-500 dark:text-oai-gray-400">{copy("leaderboard.sync_prompt")}</p>
               <button
                 onClick={handleEnableSync}
                 disabled={syncing}
-                className="px-3 py-1.5 text-sm font-medium text-oai-gray-600 dark:text-oai-gray-300 border border-oai-gray-300 dark:border-oai-gray-700 rounded-md hover:text-oai-black dark:hover:text-white hover:border-oai-gray-400 dark:hover:border-oai-gray-600 disabled:opacity-50 transition-colors"
+                className="shrink-0 whitespace-nowrap self-start sm:self-auto px-3 py-1.5 text-sm font-medium text-oai-gray-600 dark:text-oai-gray-300 border border-oai-gray-300 dark:border-oai-gray-700 rounded-md hover:text-oai-black dark:hover:text-white hover:border-oai-gray-400 dark:hover:border-oai-gray-600 disabled:opacity-50 transition-colors"
               >
                 {syncing ? copy("leaderboard.sync_button.busy") : copy("leaderboard.sync_button.idle")}
               </button>
