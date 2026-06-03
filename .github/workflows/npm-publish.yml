@@ -9,7 +9,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  # Quality gate: tests must pass before we publish. Runs on Node 24 because the
+  # suite imports dashboard .ts files directly (native type stripping, Node
+  # 22.18+) and loads undici 8 (needs webidl.markAsUncloneable) — neither works
+  # on Node 20. The published package itself is built/published on Node 20 below.
+  test:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -18,6 +22,40 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            dashboard/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install dashboard dependencies
+        run: npm ci --prefix dashboard
+
+      # The local-runtime install test asserts dashboard/dist/index.html exists.
+      - name: Build dashboard
+        env:
+          VITE_INSFORGE_BASE_URL: https://srctyff5.us-east.insforge.app
+          VITE_INSFORGE_ANON_KEY: ik_9f35735991b684f7cf57fa00bb4d0487
+        run: npm run dashboard:build
+
+      - name: Run tests
+        run: npm test
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          # Node 20 matches the engines field: build + publish on the minimum
+          # supported runtime so the published artifact is verified against it.
           node-version: 20
           registry-url: https://registry.npmjs.org
 
