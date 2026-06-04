@@ -1,7 +1,8 @@
 import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Trophy } from "lucide-react";
+import { Trophy, Download } from "lucide-react";
 import { copy } from "../lib/copy";
+import { isNativeApp } from "../lib/native-bridge.js";
 import { useCurrency } from "../hooks/useCurrency.js";
 import { useTheme } from "../hooks/useTheme.js";
 import { ThemeToggle } from "../ui/foundation/ThemeToggle.jsx";
@@ -15,6 +16,8 @@ import {
   useLeaderboardProfileData,
 } from "../components/leaderboard/LeaderboardProfileModal.jsx";
 
+const RELEASE_URL = "https://github.com/mm7894215/TokenTracker/releases/latest";
+
 /**
  * Standalone, shareable per-user profile page at /u/:userId. Reuses the same
  * content + data hook as the leaderboard modal; renders inside a centered
@@ -27,6 +30,9 @@ export function LeaderboardProfilePage({ auth, signedIn, sessionSoftExpired, use
   const { openLoginModal } = useLoginModal();
   const { signedIn: realSignedIn, loading: authLoading } = useInsforgeAuth();
 
+  // Browser visitors landing on a shared profile are prime download targets;
+  // hide the CTA when already running inside the native app.
+  const showDownload = !isNativeApp();
 
   const authTokenAllowed = signedIn && !sessionSoftExpired;
   const accessToken = useMemo(() => {
@@ -70,6 +76,23 @@ export function LeaderboardProfilePage({ auth, signedIn, sessionSoftExpired, use
               />
               <span>{copy("leaderboard.profile.nav.back")}</span>
             </Link>
+
+            {showDownload && (
+              <a
+                href={RELEASE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group no-underline inline-flex items-center gap-1.5 h-8 px-3 text-xs font-bold rounded-lg border border-oai-gray-200 dark:border-white/10 bg-transparent text-oai-gray-700 dark:text-oai-gray-300 hover:bg-oai-gray-100 dark:hover:bg-white/5 hover:text-oai-black dark:hover:text-white transition-all duration-200 active:scale-95 shadow-sm"
+              >
+                <Download
+                  size={13}
+                  strokeWidth={2.5}
+                  aria-hidden
+                  className="transition-transform duration-150 ease-out group-hover:translate-y-0.5"
+                />
+                <span className="hidden sm:inline">{copy("leaderboard.profile.nav.download")}</span>
+              </a>
+            )}
 
             {/* 已登录时优雅渲染头像，未登录时渲染高精齐平的圆角矩形幽灵 Sign In */}
             {authLoading ? (
@@ -117,15 +140,7 @@ export function LeaderboardProfilePage({ auth, signedIn, sessionSoftExpired, use
       <footer className="border-t border-oai-gray-200 dark:border-oai-gray-900 py-8 transition-colors duration-200">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 sm:px-6 text-sm text-oai-gray-400 dark:text-oai-gray-500">
           <p>{copy("landing.v2.footer.line")}</p>
-          <div className="flex items-center gap-3">
-            <ThemeToggle theme={theme} resolvedTheme={resolvedTheme} onSetTheme={setTheme} direction="up" align="right" />
-            <Link
-              to="/leaderboard"
-              className="text-oai-gray-400 dark:text-oai-gray-500 hover:text-oai-black dark:hover:text-white transition-colors"
-            >
-              {copy("leaderboard.profile.nav.back")}
-            </Link>
-          </div>
+          <ThemeToggle theme={theme} resolvedTheme={resolvedTheme} onSetTheme={setTheme} direction="up" align="right" />
         </div>
       </footer>
     </div>
