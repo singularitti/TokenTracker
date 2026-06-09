@@ -247,6 +247,14 @@ const SOURCE_COLUMN_MAP: Record<string, string> = {
   kimi: "kimi_tokens",
 };
 
+// Account-level sources (data from a per-ACCOUNT cloud API, e.g. Cursor's usage
+// CSV — NOT machine-local logs) are stored IDENTICALLY on every device that
+// synced them, so they must be DEDUPED across devices, not summed. Machine-level
+// sources are real independent per-machine work and SUM across active devices.
+// Keep in sync with ACCOUNT_LEVEL_SOURCES in src/lib/source-metadata.js and the
+// account_usage_grouped RPC (parity: test/account-source-parity.test.js).
+const ACCOUNT_LEVEL_SOURCES = new Set<string>(["cursor"]);
+
 interface DateRange {
   from_day: string;
   to_day: string;
@@ -283,6 +291,7 @@ function computeDateRange(period: Period): DateRange {
 
 interface HourlyRow {
   user_id: string;
+  device_id: string;
   source: string;
   model: string;
   hour_start: string;
@@ -365,6 +374,30 @@ export default async function (req: Request): Promise<Response> {
   const results: Record<string, { upserted: number; skipped?: boolean }> = {};
   const requestId = crypto.randomUUID();
 
+  // Active devices (whole platform, revoked_at IS NULL). Machine-level rows are
+  // counted only for active devices — drops historic device-churn duplicates.
+  // Account-level rows are device-independent and are NOT filtered by this.
+  const activeDeviceIds = new Set<string>();
+  {
+    let devOffset = 0;
+    const DEV_PAGE = 1000;
+    while (true) {
+      const { data: devs, error: devErr } = await client.database
+        .from("tokentracker_devices")
+        .select("id")
+        .is("revoked_at", null)
+        .order("id", { ascending: true })
+        .range(devOffset, devOffset + DEV_PAGE - 1);
+      if (devErr) {
+        return json({ error: `device scan failed: ${devErr.message}` }, 500);
+      }
+      if (!devs || devs.length === 0) break;
+      for (const d of devs as Array<{ id: string }>) activeDeviceIds.add(d.id);
+      if (devs.length < DEV_PAGE) break;
+      devOffset += DEV_PAGE;
+    }
+  }
+
   for (const period of periods) {
     const periodStartedAt = Date.now();
     const { from_day, to_day } = computeDateRange(period);
@@ -407,13 +440,19 @@ export default async function (req: Request): Promise<Response> {
     nextDay.setUTCDate(nextDay.getUTCDate() + 1);
     const rangeEnd = nextDay.toISOString();
 
-    // Paginate through all hourly rows (1000 per page).
-    // Dedupe by (user_id, source, model, hour_start) keeping the MAX
-    // total_tokens across devices — the same logical bucket can be recorded
-    // under multiple device_id rows (cloud-sync issues a new device per
-    // session; cumulative queue replays upsert under whichever device ran
-    // the sync). SUM across devices would double-count the same usage.
-    const bucketMap = new Map<string, HourlyRow>();
+    // Paginate through all hourly rows (1000 per page). Two-class cross-device
+    // aggregation, matching the account_usage_grouped RPC (see its header +
+    // Codex review):
+    //   * ACCOUNT-LEVEL sources (cursor): same data on every device, so keep
+    //     ONE canonical whole row per (user, source, model, hour) — the most
+    //     complete (highest total_tokens). Whole-row, not per-column max, so
+    //     cost derived from the token columns stays internally consistent.
+    //   * MACHINE-LEVEL sources: real independent per-machine work, SUM across
+    //     the user's ACTIVE devices (historic churn devices are excluded).
+    // Pre-v0.44 this took a global MAX for ALL sources, which under-counted
+    // genuine multi-machine usage and only accidentally deduped account-level.
+    const accountMap = new Map<string, HourlyRow>(); // canonical whole row
+    const machineMap = new Map<string, HourlyRow>(); // SUM accumulator
     let offset = 0;
     const PAGE_SIZE = 1000;
     let hasMore = true;
@@ -423,7 +462,7 @@ export default async function (req: Request): Promise<Response> {
     while (hasMore) {
       const { data: rows, error } = await client.database
         .from("tokentracker_hourly")
-        .select("user_id, source, model, hour_start, total_tokens, input_tokens, output_tokens, cached_input_tokens, cache_creation_input_tokens, reasoning_output_tokens")
+        .select("user_id, device_id, source, model, hour_start, total_tokens, input_tokens, output_tokens, cached_input_tokens, cache_creation_input_tokens, reasoning_output_tokens")
         .gte("hour_start", rangeStart)
         .lt("hour_start", rangeEnd)
         .order("hour_start", { ascending: true })
@@ -451,10 +490,34 @@ export default async function (req: Request): Promise<Response> {
 
       for (const row of rows as HourlyRow[]) {
         const key = `${row.user_id}|${row.source}|${row.model}|${row.hour_start}`;
-        const existing = bucketMap.get(key);
-        const incoming = Number(row.total_tokens) || 0;
-        if (!existing || incoming > (Number(existing.total_tokens) || 0)) {
-          bucketMap.set(key, row);
+        if (ACCOUNT_LEVEL_SOURCES.has(row.source)) {
+          // Dedup: keep the most complete whole row (highest total_tokens).
+          const existing = accountMap.get(key);
+          if (!existing || (Number(row.total_tokens) || 0) > (Number(existing.total_tokens) || 0)) {
+            accountMap.set(key, row);
+          }
+        } else {
+          // Machine-level: active devices only, SUM across them.
+          if (!activeDeviceIds.has(row.device_id)) continue;
+          const acc = machineMap.get(key);
+          if (!acc) {
+            machineMap.set(key, {
+              ...row,
+              total_tokens: Number(row.total_tokens) || 0,
+              input_tokens: Number(row.input_tokens) || 0,
+              output_tokens: Number(row.output_tokens) || 0,
+              cached_input_tokens: Number(row.cached_input_tokens) || 0,
+              cache_creation_input_tokens: Number(row.cache_creation_input_tokens) || 0,
+              reasoning_output_tokens: Number(row.reasoning_output_tokens) || 0,
+            });
+          } else {
+            acc.total_tokens += Number(row.total_tokens) || 0;
+            acc.input_tokens += Number(row.input_tokens) || 0;
+            acc.output_tokens += Number(row.output_tokens) || 0;
+            acc.cached_input_tokens += Number(row.cached_input_tokens) || 0;
+            acc.cache_creation_input_tokens += Number(row.cache_creation_input_tokens) || 0;
+            acc.reasoning_output_tokens += Number(row.reasoning_output_tokens) || 0;
+          }
         }
       }
 
@@ -463,7 +526,7 @@ export default async function (req: Request): Promise<Response> {
     }
 
     const aggMap = new Map<string, UserAgg>();
-    for (const row of bucketMap.values()) {
+    for (const row of [...machineMap.values(), ...accountMap.values()]) {
       let agg = aggMap.get(row.user_id);
       if (!agg) {
         agg = newUserAgg();
@@ -490,7 +553,7 @@ export default async function (req: Request): Promise<Response> {
         to_day,
         scanned_rows: scannedRows,
         pages_fetched: pageCount,
-        deduped_buckets: bucketMap.size,
+        deduped_buckets: accountMap.size + machineMap.size,
         aggregated_users: 0,
         upserted: 0,
         skipped: false,
@@ -653,7 +716,7 @@ export default async function (req: Request): Promise<Response> {
           error: upsertErr.message,
           scanned_rows: scannedRows,
           pages_fetched: pageCount,
-          deduped_buckets: bucketMap.size,
+          deduped_buckets: accountMap.size + machineMap.size,
           aggregated_users: aggMap.size,
           duration_ms: Date.now() - periodStartedAt,
         });
@@ -671,7 +734,7 @@ export default async function (req: Request): Promise<Response> {
       to_day,
       scanned_rows: scannedRows,
       pages_fetched: pageCount,
-      deduped_buckets: bucketMap.size,
+      deduped_buckets: accountMap.size + machineMap.size,
       aggregated_users: aggMap.size,
       upserted: upsertRows.length,
       skipped: false,
