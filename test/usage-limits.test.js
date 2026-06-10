@@ -21,7 +21,7 @@ const {
 } = require("../src/lib/usage-limits");
 
 describe("extractGeminiOauthClientCredentials", () => {
-  it("finds OAuth constants from bundled Gemini CLI chunk files", () => {
+  it("finds OAuth constants from bundled Gemini CLI chunk files", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-gemini-bundle-"));
     try {
       const root = path.join(tmp, "lib", "node_modules", "@google", "gemini-cli");
@@ -38,7 +38,7 @@ describe("extractGeminiOauthClientCredentials", () => {
         "utf8",
       );
 
-      const result = extractGeminiOauthClientCredentials({
+      const result = await extractGeminiOauthClientCredentials({
         commandRunner(command, args) {
           assert.equal(command, "which");
           assert.deepEqual(args, ["gemini"]);
@@ -55,7 +55,7 @@ describe("extractGeminiOauthClientCredentials", () => {
     }
   });
 
-  it("falls back to nvm-installed Gemini when launchd PATH cannot find gemini", () => {
+  it("falls back to nvm-installed Gemini when launchd PATH cannot find gemini", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-gemini-nvm-"));
     try {
       const home = path.join(tmp, "home");
@@ -77,7 +77,7 @@ describe("extractGeminiOauthClientCredentials", () => {
         "utf8",
       );
 
-      const result = extractGeminiOauthClientCredentials({
+      const result = await extractGeminiOauthClientCredentials({
         home,
         commandRunner() {
           return { status: 1, stdout: "" };
@@ -1624,7 +1624,7 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
     assert.deepEqual(parseListeningPorts(output), [51234, 51235]);
   });
 
-  it("detects antigravity process info from ps output", () => {
+  it("detects antigravity process info from ps output", async () => {
     const commandRunner = () => ({
       stdout: `
 123 /Applications/Antigravity.app/Contents/MacOS/language_server_macos --app_data_dir antigravity --csrf_token abc123 --extension_server_port 42427
@@ -1632,7 +1632,7 @@ lang      123 me    23u  IPv4 0x124                0t0  TCP 127.0.0.1:51235 (LIS
       status: 0,
     });
 
-    const result = detectAntigravityProcess({ commandRunner });
+    const result = await detectAntigravityProcess({ commandRunner });
 
     assert.equal(result.configured, true);
     assert.equal(result.pid, 123);

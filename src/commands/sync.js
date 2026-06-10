@@ -269,7 +269,7 @@ async function cmdSync(argv) {
     openclawResult.bucketsQueued += openclawFallback.bucketsQueued;
 
     const claudeFiles = await listClaudeProjectFiles(claudeProjectsDir);
-    await reincludeClaudeMemObserverFiles({ cursors, claudeFiles, queuePath });
+    await reincludeClaudeMemObserverFiles({ cursors, claudeFiles, queuePath, queueStatePath });
     await repairClaudeQueueFromGroundTruth({
       cursors,
       queuePath,
@@ -2273,7 +2273,7 @@ async function repairClaudeQueueFromGroundTruth({
   return true;
 }
 
-async function reincludeClaudeMemObserverFiles({ cursors, claudeFiles, queuePath }) {
+async function reincludeClaudeMemObserverFiles({ cursors, claudeFiles, queuePath, queueStatePath }) {
   if (!cursors || typeof cursors !== "object") return false;
   const migrations = (cursors.migrations ||= {});
   if (migrations[CLAUDE_MEM_OBSERVER_REINCLUDE_KEY]) return false;
@@ -2311,7 +2311,7 @@ async function reincludeClaudeMemObserverFiles({ cursors, claudeFiles, queuePath
   }
 
   const queueRowsRelabeled = typeof queuePath === "string" && queuePath
-    ? await relabelClaudeMemQueueRows(queuePath)
+    ? await relabelClaudeMemQueueRows(queuePath, queueStatePath)
     : 0;
 
   migrations[CLAUDE_MEM_OBSERVER_REINCLUDE_KEY] = {
@@ -2323,7 +2323,7 @@ async function reincludeClaudeMemObserverFiles({ cursors, claudeFiles, queuePath
   return filesReset > 0 || hashesRemoved > 0 || queueRowsRelabeled > 0;
 }
 
-async function relabelClaudeMemQueueRows(queuePath) {
+async function relabelClaudeMemQueueRows(queuePath, queueStatePath = null) {
   let raw;
   try {
     raw = await fs.readFile(queuePath, "utf8");
@@ -2332,32 +2332,73 @@ async function relabelClaudeMemQueueRows(queuePath) {
   }
   if (!raw || !raw.includes('"claude-mem"')) return 0;
 
+  // The cloud-upload cursor (queue.state.json `offset`) is a byte position in
+  // the pre-rewrite file. Relabeling shrinks rewritten lines ("claude-mem" →
+  // "claude"), so the old offset would land mid-line in the new file and the
+  // next drainQueueToCloud batch would skip part of a row (or a whole row).
+  // Track the old→new byte mapping while rewriting and remap the offset to
+  // the equivalent line boundary (same pattern as project-usage-purge.js).
+  let previousOffset = 0;
+  if (typeof queueStatePath === "string" && queueStatePath) {
+    try {
+      const st = JSON.parse(await fs.readFile(queueStatePath, "utf8"));
+      const off = Number(st?.offset || 0);
+      if (Number.isFinite(off) && off > 0) previousOffset = off;
+    } catch (_e) {
+      previousOffset = 0;
+    }
+  }
+
   const lines = raw.split("\n");
   const out = [];
   let relabeled = 0;
-  for (const line of lines) {
-    if (!line) {
-      out.push(line);
-      continue;
+  let inputOffset = 0;
+  let outputOffset = 0;
+  let nextOffset = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const isLast = i === lines.length - 1;
+    let outLine = line;
+    if (line) {
+      try {
+        const obj = JSON.parse(line);
+        if (obj && obj.source === "claude-mem") {
+          obj.source = "claude";
+          relabeled += 1;
+          outLine = JSON.stringify(obj);
+        }
+      } catch (_e) {
+        // keep malformed lines verbatim
+      }
     }
-    let obj;
-    try {
-      obj = JSON.parse(line);
-    } catch (_e) {
-      out.push(line);
-      continue;
-    }
-    if (obj && obj.source === "claude-mem") {
-      obj.source = "claude";
-      relabeled += 1;
-      out.push(JSON.stringify(obj));
-    } else {
-      out.push(line);
-    }
+    out.push(outLine);
+    inputOffset += Buffer.byteLength(line, "utf8") + (isLast ? 0 : 1);
+    outputOffset += Buffer.byteLength(outLine, "utf8") + (isLast ? 0 : 1);
+    // Upload offsets always sit at line boundaries; a mid-line offset
+    // (corruption) rounds down to the previous boundary so no row is skipped
+    // — worst case a row is re-uploaded, and cloud ingest upserts by key.
+    if (inputOffset <= previousOffset) nextOffset = outputOffset;
   }
   if (relabeled === 0) return 0;
 
-  await fs.writeFile(queuePath, out.join("\n"), "utf8");
+  // Atomic rewrite: temp file in the same directory + rename, so a crash
+  // mid-write can never leave queue.jsonl truncated.
+  const tmpPath = `${queuePath}.tmp`;
+  await fs.writeFile(tmpPath, out.join("\n"), "utf8");
+  await fs.rename(tmpPath, queuePath);
+
+  if (typeof queueStatePath === "string" && queueStatePath && previousOffset > 0) {
+    let state = {};
+    try {
+      state = JSON.parse(await fs.readFile(queueStatePath, "utf8"));
+      if (!state || typeof state !== "object") state = {};
+    } catch (_e) {
+      state = {};
+    }
+    state.offset = nextOffset;
+    state.updatedAt = new Date().toISOString();
+    await fs.writeFile(queueStatePath, JSON.stringify(state), "utf8");
+  }
   return relabeled;
 }
 

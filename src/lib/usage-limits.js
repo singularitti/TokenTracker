@@ -677,8 +677,8 @@ function expandGeminiExecutableCandidates({ home } = {}) {
   return candidates;
 }
 
-function extractGeminiOauthClientCredentials({ commandRunner, home } = {}) {
-  const result = runCommand(commandRunner, "which", ["gemini"], { timeout: 2000 });
+async function extractGeminiOauthClientCredentials({ commandRunner, home } = {}) {
+  const result = await runCommand(commandRunner, "which", ["gemini"], { timeout: 2000 });
   const geminiPath = typeof result?.stdout === "string" ? result.stdout.trim() : "";
 
   const geminiPaths = [
@@ -732,7 +732,7 @@ async function refreshGeminiAccessToken({
   fetchImpl = fetch,
   commandRunner,
 }) {
-  const oauthClient = extractGeminiOauthClientCredentials({ commandRunner, home });
+  const oauthClient = await extractGeminiOauthClientCredentials({ commandRunner, home });
   if (!oauthClient?.clientId || !oauthClient?.clientSecret) {
     throw new Error("Gemini API error: Could not find Gemini CLI OAuth configuration");
   }
@@ -940,24 +940,97 @@ async function fetchGeminiLimits({ home, env, fetchImpl = fetch, commandRunner }
   }
 }
 
+// Async command runner. Previously this wrapped `cp.spawnSync`, which blocked the
+// Node event loop for the full command duration (up to 20s for Kiro) and froze every
+// other local-api endpoint plus the other providers' withProviderTimeout races.
+// Returns a promise for a spawnSync-shaped result: { status, stdout, stderr, error? }.
+// Injected runners (tests) may stay synchronous — their return value is wrapped in
+// Promise.resolve so both sync and async runners work.
 function runCommand(commandRunner, command, args, options = {}) {
-  const runner = typeof commandRunner === "function" ? commandRunner : cp.spawnSync;
-  return runner(command, args, {
+  const merged = {
     encoding: "utf8",
     maxBuffer: 10 * 1024 * 1024,
     ...options,
+  };
+  if (typeof commandRunner === "function") {
+    return Promise.resolve(commandRunner(command, args, merged));
+  }
+
+  const { timeout, maxBuffer, ...spawnOptions } = merged;
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = cp.spawn(command, args, { ...spawnOptions, stdio: ["ignore", "pipe", "pipe"] });
+    } catch (error) {
+      resolve({ status: null, stdout: "", stderr: "", error });
+      return;
+    }
+
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    let timedOut = false;
+    let timer = null;
+    let hardTimer = null;
+
+    const settle = ({ status = null, error = null } = {}) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      if (hardTimer) clearTimeout(hardTimer);
+      let finalError = error;
+      if (!finalError && timedOut) {
+        finalError = new Error(`spawn ${command} ETIMEDOUT`);
+        finalError.code = "ETIMEDOUT";
+      }
+      const result = { status, stdout, stderr };
+      if (finalError) result.error = finalError;
+      resolve(result);
+    };
+
+    if (Number.isFinite(timeout) && timeout > 0) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        try { child.kill("SIGTERM"); } catch (_error) {}
+        // Guarantee settlement even if the child ignores SIGTERM or keeps stdio open.
+        hardTimer = setTimeout(() => {
+          try { child.kill("SIGKILL"); } catch (_error) {}
+          settle({ status: null });
+        }, 1000);
+        if (typeof hardTimer.unref === "function") hardTimer.unref();
+      }, timeout);
+    }
+
+    const collect = (stream, append) => {
+      if (!stream) return;
+      stream.setEncoding("utf8");
+      stream.on("data", (chunk) => {
+        append(chunk);
+        if (stdout.length + stderr.length > maxBuffer) {
+          const error = new Error(`spawn ${command} maxBuffer length exceeded`);
+          error.code = "ERR_CHILD_PROCESS_STDIO_MAXBUFFER";
+          try { child.kill("SIGKILL"); } catch (_error) {}
+          settle({ status: null, error });
+        }
+      });
+    };
+    collect(child.stdout, (chunk) => { stdout += chunk; });
+    collect(child.stderr, (chunk) => { stderr += chunk; });
+
+    child.on("error", (error) => settle({ status: null, error }));
+    child.on("close", (code) => settle({ status: timedOut ? null : code }));
   });
 }
 
-function whichBinary(binary, { commandRunner } = {}) {
-  const result = runCommand(commandRunner, "which", [binary], { timeout: 2000 });
+async function whichBinary(binary, { commandRunner } = {}) {
+  const result = await runCommand(commandRunner, "which", [binary], { timeout: 2000 });
   if (result?.error || result?.status !== 0) return null;
   const stdout = typeof result?.stdout === "string" ? result.stdout.trim() : "";
   return stdout ? stdout.split("\n")[0] : null;
 }
 
-function isBinaryAvailable(binary, { commandRunner } = {}) {
-  return whichBinary(binary, { commandRunner }) !== null;
+async function isBinaryAvailable(binary, { commandRunner } = {}) {
+  return (await whichBinary(binary, { commandRunner })) !== null;
 }
 
 function stripAnsi(text) {
@@ -1223,12 +1296,12 @@ async function fetchCopilotLimits({ home, env = process.env, fetchImpl = fetch }
   }
 }
 
-function fetchKiroLimits({ commandRunner, now = new Date() } = {}) {
-  if (!isBinaryAvailable("kiro-cli", { commandRunner })) {
+async function fetchKiroLimits({ commandRunner, now = new Date() } = {}) {
+  if (!(await isBinaryAvailable("kiro-cli", { commandRunner }))) {
     return { configured: false };
   }
 
-  const result = runCommand(
+  const result = await runCommand(
     commandRunner,
     "kiro-cli",
     ["chat", "--no-interactive", "/usage"],
@@ -1291,8 +1364,8 @@ function extractCommandFlag(command, flag) {
   return match?.[1] || null;
 }
 
-function detectAntigravityProcess({ commandRunner } = {}) {
-  const result = runCommand(commandRunner, "/bin/ps", ["-ax", "-o", "pid=,command="], {
+async function detectAntigravityProcess({ commandRunner } = {}) {
+  const result = await runCommand(commandRunner, "/bin/ps", ["-ax", "-o", "pid=,command="], {
     timeout: 4000,
   });
   const lines = String(result?.stdout || "").split("\n");
@@ -1494,7 +1567,7 @@ function clearClaudeRateLimitCooldown({ home } = {}) {
   } catch (_error) {}
 }
 
-function resolveLsofBinary({ commandRunner } = {}) {
+async function resolveLsofBinary({ commandRunner } = {}) {
   for (const candidate of ["/usr/sbin/lsof", "/usr/bin/lsof"]) {
     if (fs.existsSync(candidate)) return candidate;
   }
@@ -1513,12 +1586,12 @@ function parseListeningPorts(output) {
   return Array.from(ports).sort((a, b) => a - b);
 }
 
-function listAntigravityPorts(pid, { commandRunner } = {}) {
-  const lsof = resolveLsofBinary({ commandRunner });
+async function listAntigravityPorts(pid, { commandRunner } = {}) {
+  const lsof = await resolveLsofBinary({ commandRunner });
   if (!lsof) {
     throw new Error("Antigravity port detection needs lsof. Install it, then retry.");
   }
-  const result = runCommand(
+  const result = await runCommand(
     commandRunner,
     lsof,
     ["-nP", "-iTCP", "-sTCP:LISTEN", "-a", "-p", String(pid)],
@@ -1768,7 +1841,7 @@ async function probeAntigravityPort(port, csrfToken, { timeoutMs, requestFn } = 
 }
 
 async function fetchAntigravityLimits({ home, commandRunner, requestFn, timeoutMs = 8000, nowMs = Date.now() } = {}) {
-  const processInfo = detectAntigravityProcess({ commandRunner });
+  const processInfo = await detectAntigravityProcess({ commandRunner });
   if (!processInfo.configured) {
     return readAntigravityLimitsCache({ home, nowMs }) || { configured: false };
   }
@@ -1787,7 +1860,7 @@ async function fetchAntigravityLimits({ home, commandRunner, requestFn, timeoutM
   };
 
   try {
-    const ports = listAntigravityPorts(processInfo.pid, { commandRunner });
+    const ports = await listAntigravityPorts(processInfo.pid, { commandRunner });
     let workingPort = null;
     for (const port of ports) {
       if (await probeAntigravityPort(port, processInfo.csrfToken, { timeoutMs, requestFn })) {
@@ -1864,7 +1937,29 @@ function withPlanLabel(obj, raw, brand) {
   return { ...obj, plan_label: normalizePlanLabel(raw, brand) };
 }
 
-async function getUsageLimits({
+// Single-flight guard: concurrent cache misses share one upstream fetch instead of
+// each triggering the full 9-provider round (Claude's OAuth usage endpoint 429s when
+// hammered). Survives an external resetUsageLimitsCache() (refresh=1 path in
+// local-api.js): a refresh arriving while a fetch is already running reuses that
+// in-flight fetch and returns its result.
+let inFlightFetch = null;
+
+async function getUsageLimits(options = {}) {
+  const nowMs = Date.now();
+  if (cache.data && nowMs - cache.fetchedAt < CACHE_TTL_MS) {
+    return cache.data;
+  }
+  if (inFlightFetch) {
+    return inFlightFetch;
+  }
+  const promise = fetchUsageLimitsUncached(options).finally(() => {
+    if (inFlightFetch === promise) inFlightFetch = null;
+  });
+  inFlightFetch = promise;
+  return promise;
+}
+
+async function fetchUsageLimitsUncached({
   home,
   env,
   platform,
@@ -1876,9 +1971,6 @@ async function getUsageLimits({
   providerTimeoutMs = DEFAULT_PROVIDER_TIMEOUT_MS,
 } = {}) {
   const nowMs = Date.now();
-  if (cache.data && nowMs - cache.fetchedAt < CACHE_TTL_MS) {
-    return cache.data;
-  }
 
   const [claudeToken, claudeSubscription, codexAuth] = await Promise.all([
     Promise.resolve().then(() => readClaudeCodeAccessToken({ platform, securityRunner, home })),
@@ -1949,7 +2041,7 @@ async function getUsageLimits({
       .catch((reason) => ({ configured: true, error: reason?.message || "Unknown error" })),
     withProviderTimeout(fetchGeminiLimits({ home, env, fetchImpl: providerFetch, commandRunner }), "Gemini", providerTimeoutMs)
       .catch((reason) => ({ configured: true, error: reason?.message || "Unknown error" })),
-    Promise.resolve().then(() => fetchKiroLimits({ commandRunner, now })),
+    fetchKiroLimits({ commandRunner, now }),
     fetchAntigravityLimits({ home, commandRunner, requestFn, nowMs }),
     withProviderTimeout(fetchCopilotLimits({ home, env, fetchImpl: providerFetch }), "GitHub Copilot", providerTimeoutMs)
       .catch((reason) => ({ configured: true, error: reason?.message || "Unknown error" })),
@@ -2043,6 +2135,7 @@ module.exports = {
   getUsageLimits,
   normalizePlanLabel,
   resetUsageLimitsCache,
+  runCommand,
   extractGeminiOauthClientCredentials,
   loadKimiCredentials,
   normalizeCursorUsageSummary,

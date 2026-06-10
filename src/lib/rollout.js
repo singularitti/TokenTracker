@@ -3125,7 +3125,7 @@ function readHermesSessions(dbPath, lastCompletedEpoch, unfinishedSessionIds = [
   // in-progress (ended_at IS NULL), OR sessions that were previously observed
   // unfinished.  Hermes updates token counts in real-time, including a final
   // delta when an active session later gets ended_at set.
-  const sql = `SELECT id, model, started_at, ended_at, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, message_count FROM sessions WHERE (started_at >= ${since} OR ended_at IS NULL${forceIncludeSql}) AND (input_tokens > 0 OR output_tokens > 0 OR cache_read_tokens > 0 OR reasoning_tokens > 0) ORDER BY started_at ASC`;
+  const sql = `SELECT id, model, started_at, ended_at, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, message_count FROM sessions WHERE (started_at >= ${since} OR ended_at IS NULL${forceIncludeSql}) AND (input_tokens > 0 OR output_tokens > 0 OR cache_read_tokens > 0 OR cache_write_tokens > 0 OR reasoning_tokens > 0) ORDER BY started_at ASC`;
 
   let snapshot = null;
   let effectiveDbPath = dbPath;
@@ -3215,7 +3215,13 @@ async function parseHermesIncremental({ hermesPath, dbPath, cursors, queuePath, 
       const cacheWrite = toNonNegativeInt(row.cache_write_tokens);
       const reasoning = toNonNegativeInt(row.reasoning_tokens);
       const messageCount = toNonNegativeInt(row.message_count);
-      if (inputTokens === 0 && outputTokens === 0 && cacheRead === 0 && reasoning === 0) continue;
+      if (
+        inputTokens === 0 &&
+        outputTokens === 0 &&
+        cacheRead === 0 &&
+        cacheWrite === 0 &&
+        reasoning === 0
+      ) continue;
 
       // Save current snapshot for next sync
       nextSnapshots[row.id] = { in: inputTokens, out: outputTokens, cacheRead, cacheWrite, reasoning, message_count: messageCount };
@@ -6677,7 +6683,13 @@ async function parseOmpIncremental({
       const cacheWrite = toNonNegativeInt(usage.cacheWrite);
       const reasoningTokens = toNonNegativeInt(usage.reasoningTokens);
 
-      if (input === 0 && output === 0 && cacheRead === 0 && cacheWrite === 0) {
+      if (
+        input === 0 &&
+        output === 0 &&
+        cacheRead === 0 &&
+        cacheWrite === 0 &&
+        reasoningTokens === 0
+      ) {
         seenIds.add(entryId);
         continue;
       }
@@ -6920,7 +6932,13 @@ async function parsePiIncremental({
       const cacheWrite = toNonNegativeInt(usage.cacheWrite);
       const reasoningTokens = toNonNegativeInt(usage.reasoningTokens);
 
-      if (input === 0 && output === 0 && cacheRead === 0 && cacheWrite === 0) {
+      if (
+        input === 0 &&
+        output === 0 &&
+        cacheRead === 0 &&
+        cacheWrite === 0 &&
+        reasoningTokens === 0
+      ) {
         seenIds.add(entryId);
         continue;
       }

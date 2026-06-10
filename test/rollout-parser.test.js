@@ -5425,6 +5425,35 @@ test("parseOmpIncremental computes totalTokens fallback when usage.totalTokens m
   }
 });
 
+test("parseOmpIncremental counts pure-reasoning rows (only reasoningTokens > 0)", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-omp-"));
+  try {
+    const sessionsDir = path.join(tmp, "sessions", "--test--");
+    await fs.mkdir(sessionsDir, { recursive: true });
+    const filePath = path.join(sessionsDir, "session.jsonl");
+    const queuePath = path.join(tmp, "queue.jsonl");
+    const cursors = { version: 1, files: {}, updatedAt: null };
+
+    const ts = Date.UTC(2026, 3, 5, 14, 10, 0);
+    const lines = [
+      buildOmpSessionHeader(),
+      buildOmpAssistantLine({ id: "msg-1", model: "claude-sonnet-4-5", input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoningTokens: 42, timestamp: ts }),
+    ];
+    await fs.writeFile(filePath, lines.join("\n") + "\n", "utf8");
+
+    const res = await parseOmpIncremental({ sessionFiles: [filePath], cursors, queuePath });
+    assert.equal(res.eventsAggregated, 1);
+
+    const queued = await readJsonLines(queuePath);
+    assert.equal(queued.length, 1);
+    assert.equal(queued[0].source, "omp");
+    assert.equal(queued[0].reasoning_output_tokens, 42);
+    assert.equal(queued[0].total_tokens, 42);
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
+});
+
 // ─── pi (@mariozechner/pi-coding-agent) tests — same on-disk format as omp ───
 
 test("parsePiIncremental parses a single session and queues with source 'pi'", async () => {
@@ -5485,6 +5514,35 @@ test("parsePiIncremental dedupes by entry id across two runs (state under cursor
 
     const res2 = await parsePiIncremental({ sessionFiles: [filePath], cursors, queuePath });
     assert.equal(res2.eventsAggregated, 0);
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test("parsePiIncremental counts pure-reasoning rows (only reasoningTokens > 0)", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "tt-pi-"));
+  try {
+    const sessionsDir = path.join(tmp, "sessions", "--test--");
+    await fs.mkdir(sessionsDir, { recursive: true });
+    const filePath = path.join(sessionsDir, "session.jsonl");
+    const queuePath = path.join(tmp, "queue.jsonl");
+    const cursors = { version: 1, files: {}, updatedAt: null };
+
+    const ts = Date.UTC(2026, 3, 5, 14, 10, 0);
+    const lines = [
+      buildOmpSessionHeader(),
+      buildOmpAssistantLine({ id: "msg-1", model: "mimo-v2.5-pro", input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoningTokens: 7, timestamp: ts }),
+    ];
+    await fs.writeFile(filePath, lines.join("\n") + "\n", "utf8");
+
+    const res = await parsePiIncremental({ sessionFiles: [filePath], cursors, queuePath });
+    assert.equal(res.eventsAggregated, 1);
+
+    const queued = await readJsonLines(queuePath);
+    assert.equal(queued.length, 1);
+    assert.equal(queued[0].source, "pi");
+    assert.equal(queued[0].reasoning_output_tokens, 7);
+    assert.equal(queued[0].total_tokens, 7);
   } finally {
     await fs.rm(tmp, { recursive: true, force: true });
   }

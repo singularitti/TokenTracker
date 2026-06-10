@@ -14,6 +14,14 @@
  * React Wrapped page.
  */
 
+// Lazy require to avoid loading the full local-api module (and its pricing
+// tables) until rows are actually aggregated. local-api.js itself requires
+// this module lazily inside a handler, so there is no top-level cycle either
+// way — but keeping this lazy preserves wrapped-aggregator as a light import.
+function normalizeQueueRow(row) {
+  return require("./local-api").normalizeQueueRow(row);
+}
+
 function isFiniteNumber(n) {
   return typeof n === "number" && Number.isFinite(n);
 }
@@ -70,7 +78,10 @@ function aggregateWrapped(rows, opts = {}) {
   for (const row of Array.isArray(rows) ? rows : []) {
     if (!row || typeof row !== "object") continue;
     const key = `${row.source || ""}|${row.model || ""}|${row.hour_start || ""}`;
-    dedup.set(key, row);
+    // Apply the same legacy-row corrections (codex inclusive-input, cursor
+    // billable=0) as local-api.js readQueueData so `tracker wrapped` matches
+    // the dashboard for identical data.
+    dedup.set(key, normalizeQueueRow(row));
   }
   const all = Array.from(dedup.values());
 

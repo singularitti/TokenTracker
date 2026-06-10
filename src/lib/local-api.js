@@ -122,7 +122,9 @@ function readProjectQueueData(projectQueuePath) {
     try {
       const row = JSON.parse(line);
       const key = `${row.project_key || ""}|${row.source || ""}|${row.hour_start || ""}`;
-      seen.set(key, row);
+      // Same legacy-row corrections as the main queue (codex inclusive-input,
+      // cursor billable=0) so both read paths report identical numbers.
+      seen.set(key, normalizeQueueRow(row));
     } catch {
       // skip malformed
     }
@@ -472,7 +474,7 @@ function aggregateHourlyByDay(rows, dayKey, timeZoneContext) {
     }
     const bucket = byHour.get(hourKey);
     bucket.total_tokens += row.total_tokens || 0;
-    bucket.billable_total_tokens += row.total_tokens || 0;
+    bucket.billable_total_tokens += row.billable_total_tokens ?? row.total_tokens ?? 0;
     bucket.input_tokens += row.input_tokens || 0;
     bucket.output_tokens += row.output_tokens || 0;
     bucket.cached_input_tokens += row.cached_input_tokens || 0;
@@ -2133,4 +2135,7 @@ module.exports = {
   getModelPricing,
   computeRowCost,
   ensurePricingLoaded,
+  // Shared legacy-row correction so every queue reader (main queue, project
+  // queue, wrapped aggregator) reports the same numbers for the same data.
+  normalizeQueueRow,
 };

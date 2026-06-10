@@ -58,6 +58,43 @@ export function useUsageLimits(options?: UseUsageLimitsOptions) {
     }
   }, [publishSuccessfulState]);
 
+  const refreshFromServerCache = useCallback(async () => {
+    try {
+      // Non-forcing read: serve from the server's cache rather than hitting
+      // upstream providers, mirroring the mount fetch (forcing on every focus
+      // is what tripped Claude's OAuth usage endpoint rate limit).
+      const res = await getUsageLimits();
+      const nextData = res && typeof res === "object" ? res as UsageLimitsData : null;
+      setData(nextData);
+      setError(null);
+      publishSuccessfulState(nextData, "page-load");
+    } catch (err) {
+      setError((err as Error)?.message || String(err));
+    }
+  }, [publishSuccessfulState]);
+
+  // Auto-refresh when the dashboard regains focus / becomes visible again —
+  // same throttled pattern as use-usage-data.ts, so a left-open Limits page
+  // picks up new window utilization without a manual reload.
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    const MIN_GAP_MS = 15_000;
+    let lastAt = Date.now(); // mount already fired the initial fetch below
+    const maybeRefresh = () => {
+      if (document.visibilityState !== "visible") return;
+      const nowMs = Date.now();
+      if (nowMs - lastAt < MIN_GAP_MS) return;
+      lastAt = nowMs;
+      void refreshFromServerCache();
+    };
+    window.addEventListener("focus", maybeRefresh);
+    document.addEventListener("visibilitychange", maybeRefresh);
+    return () => {
+      window.removeEventListener("focus", maybeRefresh);
+      document.removeEventListener("visibilitychange", maybeRefresh);
+    };
+  }, [refreshFromServerCache]);
+
   useEffect(() => {
     if (hasInitialState && !initialRefresh) return;
     let cancelled = false;
