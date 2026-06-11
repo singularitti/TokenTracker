@@ -1050,6 +1050,15 @@ async function cmdSync(argv) {
 
     if (runtime.deviceToken && runtime.baseUrl) {
       uploadAttempted = true;
+      // Mirror the machine identity into the purge-surviving seed file so a
+      // future `uninstall --purge` + reinstall recovers the same cloud device
+      // instead of double-counting history under a new one (issue #176). This
+      // is the migration path for installs that predate the seed file.
+      try {
+        require("../lib/machine-id").getOrCreateMachineId(queuePath);
+      } catch {
+        // best effort — upload below must not be blocked by identity mirroring
+      }
       try {
         uploadResult = await drainQueueToCloud({
           baseUrl: runtime.baseUrl,

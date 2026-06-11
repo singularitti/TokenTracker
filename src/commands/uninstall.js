@@ -88,8 +88,17 @@ async function cmdUninstall(argv) {
   // Remove local app runtime (installed by init for notify-driven sync).
   await fs.rm(path.join(trackerDir, "app"), { recursive: true, force: true }).catch(() => {});
 
+  // Deliberately NOT removed by --purge: the machine-identity seed lets a
+  // reinstall reuse the same cloud device row instead of double-counting the
+  // replayed history under a new device (issue #176).
+  const machineIdSeedPath = path.join(home, ".config", "tokentracker", "machine-id");
+  let machineIdSeedKept = false;
   if (opts.purge) {
     await fs.rm(path.join(home, ".tokentracker"), { recursive: true, force: true }).catch(() => {});
+    machineIdSeedKept = await fs.access(machineIdSeedPath).then(
+      () => true,
+      () => false,
+    );
   }
 
   process.stdout.write(
@@ -153,6 +162,9 @@ async function cmdUninstall(argv) {
         ? `- Grok Build hook removed: ${grokHookRemove.hookPath}`
         : "- Grok Build hook: no change",
       opts.purge ? `- Purged: ${path.join(home, ".tokentracker")}` : "- Purge: skipped (use --purge)",
+      ...(machineIdSeedKept
+        ? [`- Kept: ${machineIdSeedPath} (cloud device identity — a reinstall reuses the same device; delete it to fully reset)`]
+        : []),
       "",
     ].join("\n"),
   );

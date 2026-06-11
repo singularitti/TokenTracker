@@ -11,6 +11,7 @@ const {
   normalizeUsageScope,
 } = require("./source-metadata");
 const { accountSlugFor, fetchAccountUsage } = require("./cloud-account");
+const { getOrCreateMachineId, computeStableMachineId } = require("./machine-id");
 
 const SYNC_TIMEOUT_MS = 120_000;
 const TRACKER_BIN = path.resolve(__dirname, "../../bin/tracker.js");
@@ -50,60 +51,6 @@ const { computeCodexContextBreakdown } = require("./codex-context-breakdown");
 function resolveQueuePath() {
   const home = os.homedir();
   return path.join(home, ".tokentracker", "tracker", "queue.jsonl");
-}
-
-/**
- * Stable per-MACHINE identifier, persisted in config.json next to the queue.
- *
- * The dashboard uses this (not a per-browser localStorage id) as the cloud
- * device_name suffix, so every browser / WKWebView / cleared-cache session on
- * the SAME machine resolves to ONE cloud device_id. That keeps cross-device
- * SUM aggregation correct: one physical machine = one device (its cumulative
- * queue upserts onto a single row), while genuinely distinct machines stay
- * distinct devices that legitimately sum. Browser-keyed ids conflated one
- * machine into several device_ids and inflated the account-view total.
- *
- * Returns null only when the id cannot be persisted (read-only home), in which
- * case the caller falls back to its own client id (prior behavior).
- */
-function getOrCreateMachineId(queuePath) {
-  const configPath = path.join(path.dirname(queuePath || resolveQueuePath()), "config.json");
-  let config = {};
-  let raw = null;
-  try {
-    raw = fs.readFileSync(configPath, "utf8");
-  } catch (e) {
-    // Missing file is fine (fresh install → create config below). Any other
-    // read error means an existing config we must NOT clobber.
-    if (e && e.code !== "ENOENT") return null;
-  }
-  if (raw != null) {
-    try {
-      config = JSON.parse(raw) || {};
-    } catch {
-      // Corrupt / partially-written config.json — refuse to overwrite it (that
-      // would destroy deviceToken and other keys). Caller falls back to the
-      // per-browser client id.
-      return null;
-    }
-  }
-  const existing = config.machineId;
-  if (typeof existing === "string" && existing.length >= 8) return existing;
-  let generated;
-  try {
-    generated = crypto.randomUUID();
-  } catch {
-    generated = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-  }
-  try {
-    config.machineId = generated;
-    fs.mkdirSync(path.dirname(configPath), { recursive: true });
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-    try { fs.chmodSync(configPath, 0o600); } catch { /* best effort */ }
-  } catch {
-    return null;
-  }
-  return generated;
 }
 
 function readProjectQueueData(projectQueuePath) {
@@ -2142,4 +2089,5 @@ module.exports = {
   // `tracker device-login` so the CLI device-flow anchors its cloud device
   // to the machine, not the hostname.
   getOrCreateMachineId,
+  computeStableMachineId,
 };
