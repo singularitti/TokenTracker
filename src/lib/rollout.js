@@ -7891,22 +7891,70 @@ function grokEventId(value, fallback) {
   return fallback;
 }
 
-async function readGrokUpdateTokenEvents(updatesPath, fallbackTimestamp) {
-  if (!updatesPath) return { events: [], recordsProcessed: 0 };
+function grokFileEndsWithNewline(filePath, size) {
+  if (!(size > 0)) return false;
+  let fd;
   try {
-    const stat = fssync.statSync(updatesPath);
-    if (!stat.isFile()) return { events: [], recordsProcessed: 0 };
+    fd = fssync.openSync(filePath, "r");
+    const buf = Buffer.alloc(1);
+    const read = fssync.readSync(fd, buf, 0, 1, size - 1);
+    return read === 1 && buf[0] === 0x0a; // trailing "\n"
   } catch {
-    return { events: [], recordsProcessed: 0 };
+    return false;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fssync.closeSync(fd);
+      } catch {
+        /* ignore close failure */
+      }
+    }
   }
+}
+
+async function readGrokUpdateTokenEvents(updatesPath, fallbackTimestamp, prevOffsetEntry) {
+  if (!updatesPath) return { events: [], offsetEntry: null };
+  let stat;
+  try {
+    stat = fssync.statSync(updatesPath);
+    if (!stat.isFile()) return { events: [], offsetEntry: null };
+  } catch {
+    return { events: [], offsetEntry: null };
+  }
+
+  // updates.jsonl is append-only and carries cumulative totalTokens, deduped
+  // by the session high-watermark, so resuming from the last consumed byte is
+  // safe: re-read events stay below the watermark (no double count), and any
+  // bytes a write race leaves unparsed are covered by the next event's
+  // cumulative total. Re-read from 0 on truncation or inode change.
+  const prevSize = Number(prevOffsetEntry?.size) || 0;
+  const prevIno = prevOffsetEntry?.ino;
+  const inodeChanged = typeof prevIno === "number" && prevIno !== stat.ino;
+  const startOffset = stat.size < prevSize || inodeChanged ? 0 : prevSize;
+  const baseOffset = { mtimeMs: stat.mtimeMs, ino: stat.ino };
+  if (stat.size <= startOffset) {
+    return { events: [], offsetEntry: { size: startOffset, ...baseOffset } };
+  }
+
+  // Only advance the stored offset to the end of the last newline-terminated
+  // line. If Grok is mid-write, the final JSONL line has no trailing "\n" yet;
+  // its bytes are left unconsumed so the next scan re-reads the line once it is
+  // complete instead of skipping it forever (which would undercount tokens).
+  const endsWithNewline = grokFileEndsWithNewline(updatesPath, stat.size);
 
   const events = [];
   let lineIndex = 0;
-  const input = fssync.createReadStream(updatesPath, { encoding: "utf8" });
+  let lastLine = "";
+  const input = fssync.createReadStream(updatesPath, {
+    encoding: "utf8",
+    start: startOffset,
+    end: stat.size - 1, // inclusive; bound the read to the stat'd size
+  });
   const rl = readline.createInterface({ input, crlfDelay: Infinity });
   try {
     for await (const line of rl) {
       lineIndex++;
+      lastLine = line;
       if (!line || !line.trim()) continue;
       let record;
       try {
@@ -7926,10 +7974,17 @@ async function readGrokUpdateTokenEvents(updatesPath, fallbackTimestamp) {
       });
     }
   } catch {
-    return { events, recordsProcessed: events.length };
+    // Stream error mid-read: keep the events we got, but do not advance the
+    // offset so the next sync retries the same range (watermark-safe).
+    return { events, offsetEntry: prevOffsetEntry || null };
   }
 
-  return { events, recordsProcessed: events.length };
+  // When the file does not end on a newline, the final emitted line is a
+  // partial tail still being written. Exclude its bytes so the committed offset
+  // stays on a complete-line boundary and the line is re-read once finished.
+  const trailingPartialBytes = endsWithNewline ? 0 : Buffer.byteLength(lastLine, "utf8");
+  const committedSize = Math.max(startOffset, stat.size - trailingPartialBytes);
+  return { events, offsetEntry: { size: committedSize, ...baseOffset } };
 }
 
 function estimateGrokTokenDelta(totalTokens, conversationCount, options = {}) {
@@ -7962,6 +8017,13 @@ async function parseGrokBuildIncremental({
   const hourlyState = normalizeHourlyState(cursors?.hourly);
   const grokState = cursors.grok && typeof cursors.grok === "object" ? { ...cursors.grok } : {};
   let sessionSnapshots = normalizeGrokSessionSnapshots(grokState);
+  const prevUpdateOffsets =
+    grokState.updateOffsets && typeof grokState.updateOffsets === "object"
+      ? grokState.updateOffsets
+      : {};
+  // Rebuilt from the sessions seen this scan, so entries for deleted session
+  // dirs are pruned and the cursor stays bounded by the on-disk session count.
+  const updateOffsets = {};
   const touchedBuckets = new Set();
 
   const sessionList = Array.isArray(sessions) && sessions.length > 0
@@ -8013,7 +8075,15 @@ async function parseGrokBuildIncremental({
       return true;
     };
 
-    const updates = await readGrokUpdateTokenEvents(grokUpdatesPathForSession(sess), lastActive);
+    const updatesPath = grokUpdatesPathForSession(sess);
+    const updates = await readGrokUpdateTokenEvents(
+      updatesPath,
+      lastActive,
+      updatesPath ? prevUpdateOffsets[updatesPath] : null,
+    );
+    if (updatesPath && updates.offsetEntry) {
+      updateOffsets[updatesPath] = updates.offsetEntry;
+    }
     for (const event of updates.events) {
       observedTotal = Math.max(observedTotal, event.totalTokens);
       lastEventId = event.eventId || lastEventId;
@@ -8081,6 +8151,7 @@ async function parseGrokBuildIncremental({
     version: GROK_CURSOR_VERSION,
     sessionSnapshots,
     seenSessions: Object.keys(sessionSnapshots),
+    updateOffsets,
     updatedAt: new Date().toISOString()
   };
 
